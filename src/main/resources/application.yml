@@ -1,0 +1,28 @@
+spring:
+  application:
+    name: Agent4
+  ai:
+    dashscope:
+      enabled: false
+      api-key: ${AI_DASHSCOPE_API_KEY:}
+
+agent:
+  loop:
+    model: ${MODEL_ID:qwen-max}
+    max-steps: 20
+    max-tokens: 8000
+    system-prompt-template: "你是位于 %s 的编码 Agent。优先调用 shell 工具解决任务，少解释，多执行。"
+    cli:
+      enabled: false
+      prompt: "agent4 >> "
+    shell:
+      program: powershell
+      program-args:
+        - -Command
+      timeout-seconds: 120
+      blocked-fragments:
+        - "rm -rf /"
+        - "sudo"
+        - "shutdown"
+        - "reboot"
+        - "> /dev/"
