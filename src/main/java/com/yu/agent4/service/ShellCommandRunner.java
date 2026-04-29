@@ -3,7 +3,6 @@ package com.yu.agent4.service;
 import com.yu.agent4.config.AgentLoopProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StreamUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -31,18 +30,25 @@ public class ShellCommandRunner {
 
     public String run(String command) {
         if (isDangerous(command)) {
-            log.warn("Blocked dangerous shell command: {}", command);
+            log.warn("Blocked dangerous bash command: {}", command);
             return "Error: Dangerous command blocked";
         }
 
         List<String> processCommand = new ArrayList<>();
         processCommand.add(properties.getShell().getProgram());
         processCommand.addAll(properties.getShell().getProgramArgs());
+
+        // Git Bash 需要 Unix 风格的 PATH（/usr/bin、/bin）才能找到 ls 等内部命令，
+        // 而 Windows 环境变量中的 PATH 是 Windows 格式，bash 不会自动转换。
+        // 因此在命令前加 PATH 前缀，确保 bash 能找到自己的工具。
+        command = "PATH=/usr/bin:/bin:$PATH " + command;
         processCommand.add(command);
 
         ProcessBuilder processBuilder = new ProcessBuilder(processCommand);
         processBuilder.directory(new java.io.File(System.getProperty("user.dir")));
         processBuilder.redirectErrorStream(true);
+
+        processBuilder.environment().put("MSYS_NO_PATHCONV", "1");
 
         try {
             Process process = processBuilder.start();
@@ -51,11 +57,12 @@ public class ShellCommandRunner {
             boolean finished = process.waitFor(properties.getShell().getTimeoutSeconds(), TimeUnit.SECONDS);
             if (!finished) {
                 process.destroyForcibly();
-                log.warn("Shell command timed out after {} seconds: {}", properties.getShell().getTimeoutSeconds(), command);
+                log.warn("Bash command timed out after {} seconds: {}", properties.getShell().getTimeoutSeconds(), command);
                 return "Error: Timeout (" + properties.getShell().getTimeoutSeconds() + "s)";
             }
 
             String output = outputFuture.get(5, TimeUnit.SECONDS).trim();
+            log.info("Bash command output: {}", output);
             if (output.isEmpty()) {
                 return "(no output)";
             }
@@ -63,16 +70,16 @@ public class ShellCommandRunner {
             return truncate(output);
         }
         catch (IOException e) {
-            log.error("Shell command execution failed: {}", command, e);
+            log.error("Bash command execution failed: {}", command, e);
             return "Error: " + e.getMessage();
         }
         catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            log.warn("Shell command execution interrupted: {}", command, e);
+            log.warn("Bash command execution interrupted: {}", command, e);
             return "Error: Command execution interrupted";
         }
         catch (ExecutionException | TimeoutException e) {
-            log.error("Failed to collect shell command output: {}", command, e);
+            log.error("Failed to collect bash command output: {}", command, e);
             return "Error: " + e.getMessage();
         }
     }

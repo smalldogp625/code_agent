@@ -16,10 +16,10 @@ agent:
       enabled: true
       prompt: "agent4 >> "
     shell:
-      program: powershell
+      program: C:\Program Files\Git\usr\bin\bash
       program-args:
-        - -Command
-      output-charset: GBK
+        - -c
+      output-charset: UTF-8
       timeout-seconds: 120
       blocked-fragments:
         - "rm -rf /"
@@ -27,3 +27,6 @@ agent:
         - "shutdown"
         - "reboot"
         - "> /dev/"
+        - ":(){ :|:& };:"
+        - "mkfs."
+        - "dd if="

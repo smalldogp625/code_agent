@@ -85,16 +85,16 @@ public class AgentLoopProperties {
 
     public static class Shell {
 
-        private String program = "powershell";
+        private String program = "C:\\Program Files\\Git\\usr\\bin\\bash";
 
-        private List<String> programArgs = new ArrayList<>(List.of("-Command"));
+        private List<String> programArgs = new ArrayList<>(List.of("-c"));
 
         private int timeoutSeconds = 120;
 
-        private String outputCharset = "GBK";
+        private String outputCharset = "UTF-8";
 
         private List<String> blockedFragments = new ArrayList<>(
-                List.of("rm -rf /", "sudo", "shutdown", "reboot", "> /dev/")
+                List.of("rm -rf /", "sudo", "shutdown", "reboot", "> /dev/", ":(){ :|:& };:", "mkfs.", "dd if=")
         );
 
         public String getProgram() {

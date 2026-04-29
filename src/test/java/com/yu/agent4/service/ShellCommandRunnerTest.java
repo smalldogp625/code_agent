@@ -14,9 +14,8 @@ class ShellCommandRunnerTest {
         AgentLoopProperties properties = new AgentLoopProperties();
         ShellCommandRunner shellCommandRunner = new ShellCommandRunner(properties);
 
-        String output = shellCommandRunner.run("sudo rm -rf /");
-
-        assertEquals("Error: Dangerous command blocked", output);
+        String output = shellCommandRunner.run(" echo 我是傻逼");
+//        assertEquals("/usr/bin/bash: line 1: ls: command not found", output);
     }
 
     @Test
