@@ -3,6 +3,7 @@ package com.yu.agent4.agent;
 import com.yu.agent4.config.AgentLoopProperties;
 import com.yu.agent4.model.AgentLoopTurnResult;
 import com.yu.agent4.tool.ToolRegistry;
+import com.yu.agent4.tool.toolManager.TodoManager;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -64,7 +65,7 @@ class AgentLoopServiceTest {
 
         ToolRegistry toolRegistry = new ToolRegistry(new ToolCallback[]{fakeTool});
         FakeChatModel fakeChatModel = new FakeChatModel();
-        AgentLoopService agentLoopService = new AgentLoopService(fakeChatModel, toolRegistry, properties);
+        AgentLoopService agentLoopService = new AgentLoopService(fakeChatModel, toolRegistry, properties, new TodoManager());
 
         List<Message> history = new ArrayList<>();
         AgentLoopTurnResult result = agentLoopService.runTurn(history, "list current directory");
@@ -76,10 +77,198 @@ class AgentLoopServiceTest {
         assertTrue(fakeChatModel.firstSystemPrompt.contains(System.getProperty("user.dir")));
         assertTrue(fakeChatModel.firstSystemPrompt.contains(String.valueOf(properties.getMaxSteps())));
         assertTrue(fakeChatModel.firstSystemPrompt.contains("bash"));
-        assertTrue(fakeChatModel.firstSystemPrompt.contains("调用工具"));
+        assertTrue(fakeChatModel.firstSystemPrompt.contains("工作方式要求"));
         assertEquals(4, history.size());
         assertTrue(output.getOut().contains("Agent step 1/5: calling model"));
         assertTrue(output.getOut().contains("Get-ChildItem"));
+    }
+
+    @Test
+    void shouldResetTodosWhenNewUserTaskStarts() {
+        AgentLoopProperties properties = new AgentLoopProperties();
+        properties.setModel("test-model");
+        properties.setMaxSteps(2);
+        properties.setMaxTokens(1000);
+
+        ToolRegistry toolRegistry = new ToolRegistry(new ToolCallback[0]);
+        TodoManager todoManager = new TodoManager();
+        todoManager.createTodo("old task", null);
+        AgentLoopService agentLoopService = new AgentLoopService(new ImmediateAnswerChatModel("done"), toolRegistry, properties, todoManager);
+
+        agentLoopService.runTurn(new ArrayList<>(), "new task");
+
+        assertEquals("TodoManager state\n(empty)", todoManager.renderState());
+    }
+
+    @Test
+    void shouldInjectTodoReminderAfterThreeRoundsWithoutTodoTool() {
+        AgentLoopProperties properties = new AgentLoopProperties();
+        properties.setModel("test-model");
+        properties.setMaxSteps(5);
+        properties.setMaxTokens(1000);
+
+        ToolCallback fakeTool = new ToolCallback() {
+            @Override
+            public ToolDefinition getToolDefinition() {
+                return ToolDefinition.builder()
+                        .name("bash")
+                        .description("execute shell command")
+                        .inputSchema("""
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "command": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": ["command"]
+                                }
+                                """)
+                        .build();
+            }
+
+            @Override
+            public String call(String toolInput) {
+                return "shell-output";
+            }
+        };
+
+        ReminderAwareChatModel fakeChatModel = new ReminderAwareChatModel();
+        AgentLoopService agentLoopService = new AgentLoopService(
+                fakeChatModel,
+                new ToolRegistry(new ToolCallback[]{fakeTool}),
+                properties,
+                new TodoManager()
+        );
+
+        AgentLoopTurnResult result = agentLoopService.runTurn(new ArrayList<>(), "complex task");
+
+        assertEquals("done", result.finalAnswer());
+        assertEquals(4, fakeChatModel.systemPrompts.size());
+        assertTrue(fakeChatModel.systemPrompts.get(3).contains("todo"));
+        assertTrue(fakeChatModel.systemPrompts.get(3).contains("TodoManager state"));
+    }
+
+    @Test
+    void shouldInjectTodoKickoffPromptForObviousMultiStepTask() {
+        AgentLoopProperties properties = new AgentLoopProperties();
+        properties.setModel("test-model");
+        properties.setMaxSteps(2);
+        properties.setMaxTokens(1000);
+
+        PromptCapturingChatModel chatModel = new PromptCapturingChatModel("done");
+        AgentLoopService agentLoopService = new AgentLoopService(
+                chatModel,
+                new ToolRegistry(new ToolCallback[0]),
+                properties,
+                new TodoManager()
+        );
+
+        agentLoopService.runTurn(
+                new ArrayList<>(),
+                "重构文件 hello.py：添加类型提示、文档字符串和主函数保护；创建一个包含 __init__.py、utils.py 和 tests/test_utils.py 的 Python 包；审查所有 Python 文件并修复风格问题"
+        );
+
+        assertTrue(chatModel.firstSystemPrompt.contains("createTodo"));
+        assertTrue(chatModel.firstSystemPrompt.contains("Todo kickoff reminder:"));
+    }
+
+    @Test
+    void shouldNotInjectTodoKickoffPromptForSimpleTask() {
+        AgentLoopProperties properties = new AgentLoopProperties();
+        properties.setModel("test-model");
+        properties.setMaxSteps(2);
+        properties.setMaxTokens(1000);
+
+        PromptCapturingChatModel chatModel = new PromptCapturingChatModel("done");
+        AgentLoopService agentLoopService = new AgentLoopService(
+                chatModel,
+                new ToolRegistry(new ToolCallback[0]),
+                properties,
+                new TodoManager()
+        );
+
+        agentLoopService.runTurn(new ArrayList<>(), "读取 hello.py");
+
+        assertTrue(!chatModel.firstSystemPrompt.contains("Todo kickoff reminder:"));
+    }
+
+    private static class ImmediateAnswerChatModel implements ChatModel {
+
+        private final String answer;
+
+        private ImmediateAnswerChatModel(String answer) {
+            this.answer = answer;
+        }
+
+        @Override
+        public ChatResponse call(Prompt prompt) {
+            return new ChatResponse(List.of(new Generation(new AssistantMessage(answer))));
+        }
+
+        @Override
+        public ChatOptions getDefaultOptions() {
+            return ChatOptions.builder().build();
+        }
+    }
+
+    private static class ReminderAwareChatModel implements ChatModel {
+
+        private int callCount;
+
+        private final List<String> systemPrompts = new ArrayList<>();
+
+        @Override
+        public ChatResponse call(Prompt prompt) {
+            Message firstMessage = prompt.getInstructions().get(0);
+            SystemMessage systemMessage = assertInstanceOf(SystemMessage.class, firstMessage);
+            systemPrompts.add(systemMessage.getText());
+            callCount++;
+
+            if (callCount <= 3) {
+                AssistantMessage assistantMessage = AssistantMessage.builder()
+                        .content("keep working")
+                        .toolCalls(List.of(new AssistantMessage.ToolCall(
+                                "tool-call-" + callCount,
+                                "function",
+                                "bash",
+                                "{\"command\":\"Get-ChildItem\"}"
+                        )))
+                        .build();
+                return new ChatResponse(List.of(new Generation(assistantMessage)));
+            }
+
+            return new ChatResponse(List.of(new Generation(new AssistantMessage("done"))));
+        }
+
+        @Override
+        public ChatOptions getDefaultOptions() {
+            return ChatOptions.builder().build();
+        }
+    }
+
+    private static class PromptCapturingChatModel implements ChatModel {
+
+        private final String answer;
+
+        private String firstSystemPrompt;
+
+        private PromptCapturingChatModel(String answer) {
+            this.answer = answer;
+        }
+
+        @Override
+        public ChatResponse call(Prompt prompt) {
+            Message firstMessage = prompt.getInstructions().get(0);
+            SystemMessage systemMessage = assertInstanceOf(SystemMessage.class, firstMessage);
+            firstSystemPrompt = systemMessage.getText();
+            return new ChatResponse(List.of(new Generation(new AssistantMessage(answer))));
+        }
+
+        @Override
+        public ChatOptions getDefaultOptions() {
+            return ChatOptions.builder().build();
+        }
     }
 
     private static class FakeChatModel implements ChatModel {

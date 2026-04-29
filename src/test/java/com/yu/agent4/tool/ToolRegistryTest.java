@@ -21,9 +21,9 @@ class ToolRegistryTest {
 
     @Test
     void shouldRegisterAllToolBeans() {
-        ToolRegistry toolRegistry = new ToolRegistry(new Object[]{new FakeBashTool(), new FileTool()});
+        ToolRegistry toolRegistry = new ToolRegistry(new Object[]{new FakeBashTool(), new FileTool(), new TodoTool(new com.yu.agent4.tool.toolManager.TodoManager())});
 
-        assertEquals(4, toolRegistry.getToolCallbacks().size());
+        assertEquals(6, toolRegistry.getToolCallbacks().size());
     }
 
     @Test

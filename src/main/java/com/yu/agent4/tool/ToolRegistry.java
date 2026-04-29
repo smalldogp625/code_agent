@@ -29,8 +29,8 @@ public class ToolRegistry {
     private final Map<String, ToolCallback> toolCallbackMap = new LinkedHashMap<>();
 
     @Autowired
-    public ToolRegistry(BashTool bashTool, FileTool fileTool) {
-        this(new Object[]{bashTool, fileTool});
+    public ToolRegistry(BashTool bashTool, FileTool fileTool, TodoTool todoTool) {
+        this(new Object[]{bashTool, fileTool, todoTool});
     }
 
     ToolRegistry(Object[] toolBeans) {
