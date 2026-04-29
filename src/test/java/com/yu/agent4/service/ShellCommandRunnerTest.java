@@ -1,11 +1,11 @@
 package com.yu.agent4.service;
 
-import com.yu.agent4.config.AgentLoopProperties;
-import org.junit.jupiter.api.Test;
-
 import java.nio.charset.Charset;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.api.Test;
+
+import com.yu.agent4.config.AgentLoopProperties;
 
 class ShellCommandRunnerTest {
 
@@ -14,7 +14,7 @@ class ShellCommandRunnerTest {
         AgentLoopProperties properties = new AgentLoopProperties();
         ShellCommandRunner shellCommandRunner = new ShellCommandRunner(properties);
 
-        String output = shellCommandRunner.run(" echo 我是傻逼");
+        String output = shellCommandRunner.run("cat pom.xml");
 //        assertEquals("/usr/bin/bash: line 1: ls: command not found", output);
     }
 

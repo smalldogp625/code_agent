@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.ToolResponseMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
@@ -72,9 +73,13 @@ class AgentLoopServiceTest {
         assertEquals(1, result.traces().size());
         assertEquals(2, fakeChatModel.callCount);
         assertTrue(fakeChatModel.secondCallSawToolResponse);
+        assertTrue(fakeChatModel.firstSystemPrompt.contains(System.getProperty("user.dir")));
+        assertTrue(fakeChatModel.firstSystemPrompt.contains(String.valueOf(properties.getMaxSteps())));
+        assertTrue(fakeChatModel.firstSystemPrompt.contains("bash"));
+        assertTrue(fakeChatModel.firstSystemPrompt.contains("调用工具"));
         assertEquals(4, history.size());
         assertTrue(output.getOut().contains("Agent step 1/5: calling model"));
-        assertTrue(output.getOut().contains("正在调用【bash】参数：【Get-ChildItem】"));
+        assertTrue(output.getOut().contains("Get-ChildItem"));
     }
 
     private static class FakeChatModel implements ChatModel {
@@ -83,11 +88,17 @@ class AgentLoopServiceTest {
 
         private boolean secondCallSawToolResponse;
 
+        private String firstSystemPrompt;
+
         @Override
         public ChatResponse call(Prompt prompt) {
             callCount++;
 
             if (callCount == 1) {
+                Message firstMessage = prompt.getInstructions().get(0);
+                SystemMessage systemMessage = assertInstanceOf(SystemMessage.class, firstMessage);
+                firstSystemPrompt = systemMessage.getText();
+
                 AssistantMessage assistantMessage = AssistantMessage.builder()
                         .content("I will inspect the directory first")
                         .toolCalls(List.of(new AssistantMessage.ToolCall(

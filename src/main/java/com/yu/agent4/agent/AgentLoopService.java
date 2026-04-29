@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -95,6 +96,13 @@ public class AgentLoopService {
     }
 
     private String buildSystemPrompt() {
-        return properties.getSystemPromptTemplate().formatted(System.getProperty("user.dir"));
+        String toolNames = toolRegistry.getToolCallbacks().stream()
+                .map(toolCallback -> toolCallback.getToolDefinition().name())
+                .collect(Collectors.joining(", "));
+        return properties.getSystemPromptTemplate().formatted(
+                System.getProperty("user.dir"),
+                properties.getMaxSteps(),
+                toolNames
+        );
     }
 }
