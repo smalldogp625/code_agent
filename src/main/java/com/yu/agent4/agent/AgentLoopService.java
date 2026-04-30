@@ -16,6 +16,7 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.tool.ToolCallback;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
@@ -86,6 +87,51 @@ public class AgentLoopService {
         throw new IllegalStateException("Tool loop exceeded max steps: " + properties.getMaxSteps());
     }
 
+    /**
+     * 启动一个子 Agent 独立执行指定任务，返回执行总结。
+     * <p>
+     * 子 Agent 拥有独立的对话上下文和受限的工具集（不含 task、todo 工具），
+     * 执行过程中父 Agent 完全等待，子 Agent 返回最终文本后作为工具调用结果返回。
+     * 父子上下文严格隔离，子 Agent 的中间步骤对外部不可见。
+     *
+     * @param taskDescription 子 Agent 需要完成的任务描述
+     * @return 子 Agent 返回的执行总结，或错误信息
+     */
+    public String runTurnWithSubAgent(String taskDescription) {
+        // 创建子 Agent 的受限工具注册表（排除 task、createTodo、updateTodo）
+        ToolRegistry subRegistry = toolRegistry.copyExcluding(List.of("task", "createTodo", "updateTodo"));
+        // 子 Agent 独立上下文，从零开始
+        List<Message> subHistory = new ArrayList<>();
+        subHistory.add(new UserMessage(taskDescription));
+
+        // 简化的 agent 循环：模型调用 → 工具执行 → 重复，不含 todo 管理
+        for (int step = 1; step <= properties.getMaxSteps(); step++) {
+            log.info("Sub-agent step {}/{}: calling model", step, properties.getMaxSteps());
+
+            ChatResponse response = chatModel.call(buildSubPrompt(subHistory, subRegistry.getToolCallbacks()));
+            AssistantMessage assistantMessage = extractAssistantMessage(response);
+            subHistory.add(assistantMessage);
+
+            if (!assistantMessage.hasToolCalls()) {
+                // 子 Agent 已完成任务，返回最终文本
+                String text = assistantMessage.getText();
+                String result = (text != null && !text.isBlank()) ? text : "(no summary)";
+                log.info("Sub-agent completed at step {}: {}", step, result);
+                return result;
+            }
+
+            log.info("Sub-agent step {}/{}: executing {} tool call(s)",
+                    step, properties.getMaxSteps(), assistantMessage.getToolCalls().size());
+
+            ToolExecutionBatch batch = subRegistry.execute(assistantMessage.getToolCalls());
+            subHistory.add(batch.toolResponseMessage());
+        }
+
+        // 子 Agent 超过最大步数仍未完成
+        log.warn("Sub-agent exceeded max steps ({})", properties.getMaxSteps());
+        return "Error: Sub-agent exceeded max steps";
+    }
+
     private Prompt buildPrompt(List<Message> history, boolean injectTodoKickoff, boolean injectTodoReminder) {
         List<Message> promptMessages = new ArrayList<>();
         promptMessages.add(new SystemMessage(buildSystemPrompt(injectTodoKickoff, injectTodoReminder)));
@@ -96,6 +142,28 @@ public class AgentLoopService {
                 .maxToken(properties.getMaxTokens())
                 .internalToolExecutionEnabled(false)
                 .toolCallbacks(toolRegistry.getToolCallbacks())
+                .build();
+
+        return new Prompt(promptMessages, options);
+    }
+
+    /**
+     * 构造子 Agent 的 Prompt，使用子 Agent 专用系统提示词和受限工具集。
+     */
+    private Prompt buildSubPrompt(List<Message> history, List<ToolCallback> toolCallbacks) {
+        String toolNames = toolCallbacks.stream()
+                .map(tc -> tc.getToolDefinition().name())
+                .collect(Collectors.joining(", "));
+
+        List<Message> promptMessages = new ArrayList<>();
+        promptMessages.add(new SystemMessage(properties.getSubAgentSystemPrompt().formatted(toolNames)));
+        promptMessages.addAll(history);
+
+        DashScopeChatOptions options = DashScopeChatOptions.builder()
+                .model(properties.getModel())
+                .maxToken(properties.getMaxTokens())
+                .internalToolExecutionEnabled(false)
+                .toolCallbacks(toolCallbacks)
                 .build();
 
         return new Prompt(promptMessages, options);

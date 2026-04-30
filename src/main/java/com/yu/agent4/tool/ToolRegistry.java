@@ -29,8 +29,8 @@ public class ToolRegistry {
     private final Map<String, ToolCallback> toolCallbackMap = new LinkedHashMap<>();
 
     @Autowired
-    public ToolRegistry(BashTool bashTool, FileTool fileTool, TodoTool todoTool) {
-        this(new Object[]{bashTool, fileTool, todoTool});
+    public ToolRegistry(BashTool bashTool, FileTool fileTool, TodoTool todoTool, TaskTool taskTool, GrepTool grepTool, GlobTool globTool) {
+        this(new Object[]{bashTool, fileTool, todoTool, taskTool,grepTool, globTool});
     }
 
     ToolRegistry(Object[] toolBeans) {
@@ -43,6 +43,23 @@ public class ToolRegistry {
         for (ToolCallback toolCallback : toolCallbacks) {
             register(toolCallback);
         }
+    }
+
+    /** 内部构造，仅用于 copyExcluding 创建空实例 */
+    private ToolRegistry() {
+    }
+
+    /**
+     * 创建一个排除指定工具名称的副本，用于子 Agent 的受限工具注册表。
+     */
+    public ToolRegistry copyExcluding(List<String> excludeNames) {
+        ToolRegistry copy = new ToolRegistry();
+        for (Map.Entry<String, ToolCallback> entry : toolCallbackMap.entrySet()) {
+            if (!excludeNames.contains(entry.getKey())) {
+                copy.register(entry.getValue());
+            }
+        }
+        return copy;
     }
 
     public void register(Object toolBean) {

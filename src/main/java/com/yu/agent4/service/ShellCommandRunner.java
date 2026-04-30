@@ -42,6 +42,12 @@ public class ShellCommandRunner {
         // 而 Windows 环境变量中的 PATH 是 Windows 格式，bash 不会自动转换。
         // 因此在命令前加 PATH 前缀，确保 bash 能找到自己的工具。
         command = "PATH=/usr/bin:/bin:$PATH " + command;
+
+        // 将 Windows 反斜杠路径转换为 Git Bash 兼容的正斜杠路径。
+        // Git Bash 中 \ 是转义字符而非路径分隔符，.\help2\hello.py 会被解析为 .help2hello.py（一个文件）。
+        // 转换为 ./help2/hello.py 后 Git Bash 才能正确识别为路径。
+        command = command.replace('\\', '/');
+
         processCommand.add(command);
 
         ProcessBuilder processBuilder = new ProcessBuilder(processCommand);

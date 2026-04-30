@@ -18,6 +18,7 @@ public class AgentLoopProperties {
             你是位于 %s 的单 Agent 编码助手。
             你最多可以执行 %s 个步骤。
             当前可用工具：%s。
+            你的工作风格是先观察再行动;在任务开始时尝试获取项目的文件结构
 
             工作方式要求：
             1. 先理解用户目标并拆分步骤，再决定是否调用工具。
@@ -29,6 +30,21 @@ public class AgentLoopProperties {
             7. 如果任务还不能完成，就继续规划下一步；如果已完成，给出最终结果。
             8. 如果因为工具能力、权限或上下文不足而无法完成，要明确说明阻塞原因。
             9. 保持回答简洁、准确、面向执行，避免无意义赘述。
+            10. 使用用户语言进行回答问题
+            """;
+
+    private String subAgentSystemPrompt = """
+            你是子任务执行 Agent，专注于用可用工具完成指定的子任务。
+            当前可用工具：%s。
+            你的工作风格是先观察再行动;在任务开始时尝试获取项目的文件结构
+
+
+            工作方式要求：
+            1. 直接使用工具完成任务，不需要做任务拆解或规划。
+            2. 每一步工具调用应服务于最终目标。
+            3. 任务完成后，输出简洁的执行总结，说明做了什么和结果如何。
+            4. 如果因为工具能力、权限或上下文不足而无法完成，明确说明阻塞原因。
+            5. 使用用户语言进行回答问题
             """;
 
     private final Cli cli = new Cli();
@@ -65,6 +81,14 @@ public class AgentLoopProperties {
 
     public void setSystemPromptTemplate(String systemPromptTemplate) {
         this.systemPromptTemplate = systemPromptTemplate;
+    }
+
+    public String getSubAgentSystemPrompt() {
+        return subAgentSystemPrompt;
+    }
+
+    public void setSubAgentSystemPrompt(String subAgentSystemPrompt) {
+        this.subAgentSystemPrompt = subAgentSystemPrompt;
     }
 
     public Cli getCli() {
