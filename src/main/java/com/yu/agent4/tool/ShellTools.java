@@ -2,6 +2,7 @@ package com.yu.agent4.tool;
 
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
+import org.springframework.stereotype.Component;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -11,7 +12,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
-
+@Component
 public class ShellTools {
     private static final Map<String, BackgroundProcess> backgroundProcesses = new ConcurrentHashMap<>();
     /**
@@ -140,9 +141,6 @@ public class ShellTools {
         int getExitCode() {
             return process.exitValue();
         }
-
-
-
     }
 
     @Tool(name = "Bash", description = """

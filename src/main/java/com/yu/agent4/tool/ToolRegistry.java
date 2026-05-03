@@ -28,10 +28,13 @@ public class ToolRegistry {
 
     private final Map<String, ToolCallback> toolCallbackMap = new LinkedHashMap<>();
     private static final String SKILLS_PROJECT_DIR = "src/main/java/com/yu/agent4/skills";
+
     @Autowired
-    public ToolRegistry(BashTool bashTool, FileTool fileTool, TodoTool todoTool, TaskTool taskTool, GrepTool grepTool, GlobTool globTool) {
-        this(new Object[]{bashTool, fileTool, todoTool, taskTool, grepTool, globTool});
-        register(WeatherTool.builer().build());
+    public ToolRegistry( FileTool fileTool, TodoTool todoTool, TaskTool taskTool, GrepTool grepTool, GlobTool globTool,
+    ShellTools shelltools
+    ) {
+        this(new Object[]{shelltools, fileTool, todoTool, taskTool, grepTool, globTool});
+//        register(WeatherTool.builer().build());
         register(SkillsTool.builder().addSkillsDirectory(SKILLS_PROJECT_DIR).build());
     }
 
