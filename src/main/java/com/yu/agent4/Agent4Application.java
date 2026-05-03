@@ -7,6 +7,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class Agent4Application {
 
     public static void main(String[] args) {
+        System.out.println("The skill name (no arguments). E.g., \"pdf\" or \"xlsx\"");
         SpringApplication.run(Agent4Application.class, args);
     }
 
