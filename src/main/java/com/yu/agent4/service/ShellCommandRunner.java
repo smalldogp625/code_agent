@@ -1,6 +1,7 @@
 package com.yu.agent4.service;
 
 import com.yu.agent4.config.AgentLoopProperties;
+import com.yu.agent4.tool.BashOutputSummarizer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -19,8 +20,6 @@ import java.util.concurrent.TimeoutException;
 @Slf4j
 @Component
 public class ShellCommandRunner {
-
-    private static final int MAX_OUTPUT_CHARS = 50_000;
 
     private final AgentLoopProperties properties;
 
@@ -73,7 +72,9 @@ public class ShellCommandRunner {
                 return "(no output)";
             }
 
-            return truncate(output);
+            int exitCode = process.exitValue();
+            return BashOutputSummarizer.summarize(command, output, exitCode,
+                    properties.getBash().getSummarizeMinLength());
         }
         catch (IOException e) {
             log.error("Bash command execution failed: {}", command, e);
@@ -118,10 +119,4 @@ public class ShellCommandRunner {
         return new String(bytes, charset);
     }
 
-    private String truncate(String output) {
-        if (output.length() <= MAX_OUTPUT_CHARS) {
-            return output;
-        }
-        return output.substring(0, MAX_OUTPUT_CHARS);
-    }
 }

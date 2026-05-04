@@ -1,16 +1,14 @@
 package com.yu.agent4.tool;
 
+import com.yu.agent4.config.AgentLoopProperties;
 import org.junit.jupiter.api.Test;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 class ShellToolsTest {
 
     @Test
     void bash() {
-        ShellTools shellTools = new ShellTools();
+        ShellTools shellTools = new ShellTools(new AgentLoopProperties());
         String command = "dir";
-        shellTools.bash(command, null, null,null);
-
+        shellTools.bash(command, null, null, null);
     }
 }

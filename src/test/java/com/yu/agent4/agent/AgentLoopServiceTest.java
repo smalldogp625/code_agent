@@ -1,6 +1,7 @@
 package com.yu.agent4.agent;
 
 import com.yu.agent4.config.AgentLoopProperties;
+import com.yu.agent4.context.ContextAssembler;
 import com.yu.agent4.model.AgentLoopTurnResult;
 import com.yu.agent4.tool.ToolRegistry;
 import com.yu.agent4.tool.toolManager.TodoManager;
@@ -65,7 +66,10 @@ class AgentLoopServiceTest {
 
         ToolRegistry toolRegistry = new ToolRegistry(new ToolCallback[]{fakeTool});
         FakeChatModel fakeChatModel = new FakeChatModel();
-        AgentLoopService agentLoopService = new AgentLoopService(fakeChatModel, toolRegistry, properties, new TodoManager());
+        AgentLoopService agentLoopService = new AgentLoopService(
+                fakeChatModel, toolRegistry, properties, new TodoManager(),
+                new ContextAssembler(properties, toolRegistry, new TodoManager())
+        );
 
         List<Message> history = new ArrayList<>();
         AgentLoopTurnResult result = agentLoopService.runTurn(history, "list current directory");
@@ -79,7 +83,7 @@ class AgentLoopServiceTest {
         assertTrue(fakeChatModel.firstSystemPrompt.contains("bash"));
         assertTrue(fakeChatModel.firstSystemPrompt.contains("工作方式要求"));
         assertEquals(4, history.size());
-        assertTrue(output.getOut().contains("Agent step 1/5: calling model"));
+        assertTrue(output.getOut().contains("Step 1/5 — prompt_tokens"));
         assertTrue(output.getOut().contains("Get-ChildItem"));
     }
 
@@ -93,7 +97,10 @@ class AgentLoopServiceTest {
         ToolRegistry toolRegistry = new ToolRegistry(new ToolCallback[0]);
         TodoManager todoManager = new TodoManager();
         todoManager.createTodo("old task", null);
-        AgentLoopService agentLoopService = new AgentLoopService(new ImmediateAnswerChatModel("done"), toolRegistry, properties, todoManager);
+        AgentLoopService agentLoopService = new AgentLoopService(
+                new ImmediateAnswerChatModel("done"), toolRegistry, properties, todoManager,
+                new ContextAssembler(properties, toolRegistry, todoManager)
+        );
 
         agentLoopService.runTurn(new ArrayList<>(), "new task");
 
@@ -134,11 +141,13 @@ class AgentLoopServiceTest {
         };
 
         ReminderAwareChatModel fakeChatModel = new ReminderAwareChatModel();
+        ToolRegistry toolRegistry = new ToolRegistry(new ToolCallback[]{fakeTool});
         AgentLoopService agentLoopService = new AgentLoopService(
                 fakeChatModel,
-                new ToolRegistry(new ToolCallback[]{fakeTool}),
+                toolRegistry,
                 properties,
-                new TodoManager()
+                new TodoManager(),
+                new ContextAssembler(properties, toolRegistry, new TodoManager())
         );
 
         AgentLoopTurnResult result = agentLoopService.runTurn(new ArrayList<>(), "complex task");
@@ -157,11 +166,13 @@ class AgentLoopServiceTest {
         properties.setMaxTokens(1000);
 
         PromptCapturingChatModel chatModel = new PromptCapturingChatModel("done");
+        ToolRegistry toolRegistry = new ToolRegistry(new ToolCallback[0]);
         AgentLoopService agentLoopService = new AgentLoopService(
                 chatModel,
-                new ToolRegistry(new ToolCallback[0]),
+                toolRegistry,
                 properties,
-                new TodoManager()
+                new TodoManager(),
+                new ContextAssembler(properties, toolRegistry, new TodoManager())
         );
 
         agentLoopService.runTurn(
@@ -181,11 +192,13 @@ class AgentLoopServiceTest {
         properties.setMaxTokens(1000);
 
         PromptCapturingChatModel chatModel = new PromptCapturingChatModel("done");
+        ToolRegistry toolRegistry = new ToolRegistry(new ToolCallback[0]);
         AgentLoopService agentLoopService = new AgentLoopService(
                 chatModel,
-                new ToolRegistry(new ToolCallback[0]),
+                toolRegistry,
                 properties,
-                new TodoManager()
+                new TodoManager(),
+                new ContextAssembler(properties, toolRegistry, new TodoManager())
         );
 
         agentLoopService.runTurn(new ArrayList<>(), "读取 hello.py");

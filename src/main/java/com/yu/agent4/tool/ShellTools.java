@@ -1,5 +1,6 @@
 package com.yu.agent4.tool;
 
+import com.yu.agent4.config.AgentLoopProperties;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
@@ -15,6 +16,13 @@ import java.util.regex.Pattern;
 @Component
 public class ShellTools {
     private static final Map<String, BackgroundProcess> backgroundProcesses = new ConcurrentHashMap<>();
+
+    private final AgentLoopProperties properties;
+
+    public ShellTools(AgentLoopProperties properties) {
+        this.properties = properties;
+    }
+
     /**
      * 创建后台进程
      */
@@ -312,17 +320,13 @@ public class ShellTools {
                         result.append("\n");
                     result.append("Exit code: ").append(exitValue);
                 }
-                // Truncate if too long
                 String output = result.toString();
-                if (output.length() > 30000) {
-                    // Keep the bash_id header
-                    String header = output.substring(0, output.indexOf("\n\n") + 2);
-                    String content = output.substring(output.indexOf("\n\n") + 2);
-                    output = header + content.substring(0, Math.min(content.length(), 30000 - header.length()))
-                            + "\n... (output truncated)";
-                }
-
-                return output;
+                // 对长输出做结构化摘要（BashOutputSummarizer 内部有长度判断，短输出不做处理）
+                int headerEnd = output.indexOf("\n\n") + 2;
+                String header = output.substring(0, headerEnd);
+                String content = output.substring(headerEnd);
+                return header + BashOutputSummarizer.summarize(command, content, exitValue,
+                        properties.getBash().getSummarizeMinLength());
             }
 
 
@@ -423,13 +427,4 @@ public class ShellTools {
         return "Successfully killed shell: " + bash_id;
     }
 
-    public static Builder builder() {
-        return new Builder();
-    }
-
-    public static class Builder {
-        public ShellTools build() {
-            return new ShellTools();
-        }
-    }
 }

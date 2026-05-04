@@ -51,6 +51,8 @@ public class AgentLoopProperties {
 
     private final Shell shell = new Shell();
 
+    private final Bash bash = new Bash();
+
     public String getModel() {
         return model;
     }
@@ -97,6 +99,10 @@ public class AgentLoopProperties {
 
     public Shell getShell() {
         return shell;
+    }
+
+    public Bash getBash() {
+        return bash;
     }
 
     public static class Cli {
@@ -174,6 +180,19 @@ public class AgentLoopProperties {
 
         public void setBlockedFragments(List<String> blockedFragments) {
             this.blockedFragments = blockedFragments;
+        }
+    }
+
+    public static class Bash {
+
+        private int summarizeMinLength = 1500;
+
+        public int getSummarizeMinLength() {
+            return summarizeMinLength;
+        }
+
+        public void setSummarizeMinLength(int summarizeMinLength) {
+            this.summarizeMinLength = summarizeMinLength;
         }
     }
 }
