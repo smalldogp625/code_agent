@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
+
 @Component
 public class ShellTools {
     private static final Map<String, BackgroundProcess> backgroundProcesses = new ConcurrentHashMap<>();
@@ -168,6 +169,8 @@ public class ShellTools {
 		- Quote file paths with spaces in double quotes.
 		- Chain dependent commands with &&. Use ; if earlier failures are acceptable.
 		- Prefer absolute paths over cd.
+		- CRITICAL: This runs on Windows via cmd.exe. Linux commands (tree, grep, find, sed, awk, etc.) will NOT work. Use Windows-compatible alternatives (tree.com /F /A, findstr, dir /s, etc.).
+		- CRITICAL: After writing/editing files via Bash redirect (>), you MUST verify the content by calling the read tool immediately — the error may go to the file instead of the tool output.
 
 		Important notes:
 		- NEVER run additional commands to read or explore code, besides git bash commands
@@ -235,6 +238,10 @@ public class ShellTools {
         String os = System.getProperty("os.name").toLowerCase();
 
         if(os.contains("win")){
+            // cmd.exe 只认双引号，替换单引号避免管道符 | 被误解析
+            command = command.replace('\'', '"');
+            // 切换到 UTF-8 代码页，确保重定向输出的文件为 UTF-8
+            command = "chcp 65001 > nul && " + command;
             shellCommand = new String[]{"cmd.exe","/c",command};
         }else{
             shellCommand = new String[]{"sh","-c",command};
@@ -320,13 +327,19 @@ public class ShellTools {
                         result.append("\n");
                     result.append("Exit code: ").append(exitValue);
                 }
+//                String output = result.toString();
+                // TODO: powershell 输出暂不做结构化摘要（摘要可能丢失完整输出上下文）
+                // Truncate if too long
                 String output = result.toString();
-                // 对长输出做结构化摘要（BashOutputSummarizer 内部有长度判断，短输出不做处理）
-                int headerEnd = output.indexOf("\n\n") + 2;
-                String header = output.substring(0, headerEnd);
-                String content = output.substring(headerEnd);
-                return header + BashOutputSummarizer.summarize(command, content, exitValue,
-                        properties.getBash().getSummarizeMinLength());
+                if (output.length() > 30000) {
+                    // Keep the bash_id header
+                    String header = output.substring(0, output.indexOf("\n\n") + 2);
+                    String content = output.substring(output.indexOf("\n\n") + 2);
+                    output = header + content.substring(0, Math.min(content.length(), 30000 - header.length()))
+                            + "\n... (output truncated)";
+                }
+
+                return output;
             }
 
 

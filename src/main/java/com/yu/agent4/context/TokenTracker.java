@@ -1,7 +1,11 @@
 package com.yu.agent4.context;
 
 import org.slf4j.Logger;
+import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.SystemMessage;
+import org.springframework.ai.chat.messages.ToolResponseMessage;
+import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatResponse;
 
@@ -98,6 +102,54 @@ public class TokenTracker {
             }
         }
         return (long) (totalTextLength * ESTIMATE_FACTOR) + (long) messages.size() * MESSAGE_OVERHEAD;
+    }
+
+    // ========== 类型感知单条估算 ==========
+
+    /**
+     * 对单条消息做类型感知的 token 估算。
+     * <p>
+     * 不同消息类型使用不同系数，比 {@link #estimateMessages(List)} 的全局 0.4 更准确。
+     * 用于 {@link com.yu.agent4.context.compact.SnipCompactor} 做 turn 级裁剪决策。
+     *
+     * @param message 单条消息
+     * @return 估算 token 数
+     */
+    public static long estimateTokens(Message message) {
+        if (message == null) return 0;
+
+        double coefficient;
+        if (message instanceof SystemMessage) {
+            coefficient = 0.25;       // 英文指令 + tool schema
+        } else if (message instanceof UserMessage) {
+            coefficient = 0.65;       // 中文问句为主
+        } else if (message instanceof AssistantMessage am && am.hasToolCalls()) {
+            coefficient = 0.30;       // JSON 格式的工具声明
+        } else if (message instanceof AssistantMessage) {
+            coefficient = 0.40;       // 中英混合回复
+        } else if (message instanceof ToolResponseMessage) {
+            coefficient = 0.25;       // 代码/日志/文件内容
+        } else {
+            coefficient = 0.40;
+        }
+
+        long total = 0;
+        String text = message.getText();
+        if (text != null) {
+            total += (long) Math.ceil(text.length() * coefficient);
+        }
+
+        // ToolResponseMessage 的 responseData 也要算入
+        if (message instanceof ToolResponseMessage trm) {
+            for (var resp : trm.getResponses()) {
+                String data = resp.responseData();
+                if (data != null) {
+                    total += (long) Math.ceil(data.length() * coefficient);
+                }
+            }
+        }
+
+        return total + MESSAGE_OVERHEAD;
     }
 
     // ========== 决策辅助 ==========

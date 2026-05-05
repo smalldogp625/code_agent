@@ -7,6 +7,12 @@ spring:
       api-key: ${AI_DASHSCOPE_API_KEY:sk-3cd79fd5bfd544c89be4e282e30f9f11}
 
 agent:
+  context:
+    budget-max-chars: 3000
+    tool-budgets:
+      read: 50000
+      bash: 20
+      glob: 20000
   loop:
     model: ${MODEL_ID:qwen-max}
     max-steps: 20

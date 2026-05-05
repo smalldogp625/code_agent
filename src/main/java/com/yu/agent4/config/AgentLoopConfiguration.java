@@ -14,7 +14,7 @@ import org.springframework.context.annotation.Configuration;
  * 既保留 demo 里的接法，也避免和其他场景互相耦合。
  */
 @Configuration
-@EnableConfigurationProperties(AgentLoopProperties.class)
+@EnableConfigurationProperties({AgentLoopProperties.class, AgentContextProperties.class})
 public class  AgentLoopConfiguration {
 
     @Bean("agentLoopChatModel")

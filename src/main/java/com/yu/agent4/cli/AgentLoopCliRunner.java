@@ -2,6 +2,7 @@ package com.yu.agent4.cli;
 
 import com.yu.agent4.agent.AgentLoopService;
 import com.yu.agent4.config.AgentLoopProperties;
+import com.yu.agent4.context.transcript.SessionStore;
 import com.yu.agent4.model.AgentLoopTurnResult;
 import com.yu.agent4.model.ToolExecutionTrace;
 import org.jline.reader.EndOfFileException;
@@ -21,6 +22,7 @@ import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * 控制台入口。
@@ -38,13 +40,21 @@ public class AgentLoopCliRunner implements ApplicationRunner {
 
     private final AgentLoopProperties properties;
 
-    public AgentLoopCliRunner(AgentLoopService agentLoopService, AgentLoopProperties properties) {
+    private final SessionStore sessionStore;
+
+    private String sessionId;
+
+    public AgentLoopCliRunner(AgentLoopService agentLoopService, AgentLoopProperties properties,
+                               SessionStore sessionStore) {
         this.agentLoopService = agentLoopService;
         this.properties = properties;
+        this.sessionStore = sessionStore;
     }
 
     @Override
     public void run(ApplicationArguments args) throws Exception {
+        this.sessionId = UUID.randomUUID().toString().substring(0, 8);
+        sessionStore.create(sessionId, null);
         List<Message> history = new ArrayList<>();
 
         try (Terminal terminal = buildTerminal()) {
@@ -109,6 +119,10 @@ public class AgentLoopCliRunner implements ApplicationRunner {
         }
         if (CLEAR_COMMAND.equals(normalized)) {
             history.clear();
+            agentLoopService.resetSession(sessionId);
+            String prevSessionId = sessionId;
+            sessionId = UUID.randomUUID().toString().substring(0, 8);
+            sessionStore.create(sessionId, prevSessionId);
             out.println("会话历史已清空。");
             out.println();
             return true;
@@ -117,7 +131,7 @@ public class AgentLoopCliRunner implements ApplicationRunner {
             return false;
         }
 
-        AgentLoopTurnResult result = agentLoopService.runTurn(history, query);
+        AgentLoopTurnResult result = agentLoopService.runTurn(history, query, sessionId);
         printTraces(result.traces(), out);
 
         if (result.finalAnswer() != null && !result.finalAnswer().isBlank()) {

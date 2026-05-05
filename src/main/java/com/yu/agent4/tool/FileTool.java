@@ -4,6 +4,10 @@ import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
 
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.Charset;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -25,7 +29,9 @@ public class FileTool {
             @ToolParam(description = "相对工作区的文件路径") String path,
             @ToolParam(description = "最多返回多少行，传 null 或不传表示返回全部") Integer limit) {
         try {
-            String text = Files.readString(safePath(path), StandardCharsets.UTF_8);
+            Path safe = safePath(path);
+            byte[] bytes = Files.readAllBytes(safe);
+            String text = decodeWithFallback(bytes);
             List<String> allLines = text.lines().toList();
             List<String> lines = new ArrayList<>(allLines);
             if (limit != null && limit > 0 && limit < lines.size()) {
@@ -41,7 +47,7 @@ public class FileTool {
 
     @Tool(
             name = "write",
-            description = "向工作区内文件写入完整内容；如果父目录不存在会自动创建。"
+            description = "向工作区内文件写入完整内容；如果父目录不存在会自动创建。写入后必须立即用 read 工具验证内容是否正确。"
     )
     public String write(
             @ToolParam(description = "相对工作区的文件路径") String path,
@@ -62,7 +68,7 @@ public class FileTool {
 
     @Tool(
             name = "edit",
-            description = "在工作区内编辑文件，将首次出现的 old_text 替换为 new_text；如果未找到则返回错误。"
+            description = "在工作区内编辑文件，将首次出现的 old_text 替换为 new_text；如果未找到则返回错误。编辑后必须立即用 read 工具验证结果是否正确。"
     )
     public String edit(
             @ToolParam(description = "相对工作区的文件路径") String path,
@@ -105,5 +111,17 @@ public class FileTool {
             return output;
         }
         return output.substring(0, MAX_OUTPUT_CHARS);
+    }
+
+    /** 尝试 UTF-8 解码，失败时回退到系统默认编码（如 Windows 的 GBK） */
+    private static String decodeWithFallback(byte[] bytes) {
+        try {
+            return StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(bytes))
+                    .toString();
+        } catch (CharacterCodingException e) {
+            return new String(bytes, Charset.defaultCharset());
+        }
     }
 }

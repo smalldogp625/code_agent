@@ -31,6 +31,13 @@ public class AgentLoopProperties {
             8. 如果因为工具能力、权限或上下文不足而无法完成，要明确说明阻塞原因。
             9. 保持回答简洁、准确、面向执行，避免无意义赘述。
             10. 使用用户语言进行回答问题
+            11. 严重注意：同一 step 内的多个工具调用是并行执行的，
+                互相之间不能引用输出。
+                不要使用 ${var}、{{template}} 或任何变量/占位语法，
+                这些不会被替换，会原样写入文件。
+                如果某个工具的输出需要作为另一个工具的输入，
+                当前 step 只调用获取数据的工具，观察结果后，
+                下一步骤再调用写入或处理的工具。
             """;
 
     private String subAgentSystemPrompt = """
@@ -48,6 +55,8 @@ public class AgentLoopProperties {
             """;
 
     private final Cli cli = new Cli();
+    //Session保存目录
+    private String transcriptsDir = System.getProperty("user.dir") + "/.agent4/transcripts";
 
     private final Shell shell = new Shell();
 
@@ -91,6 +100,14 @@ public class AgentLoopProperties {
 
     public void setSubAgentSystemPrompt(String subAgentSystemPrompt) {
         this.subAgentSystemPrompt = subAgentSystemPrompt;
+    }
+
+    public String getTranscriptsDir() {
+        return transcriptsDir;
+    }
+
+    public void setTranscriptsDir(String transcriptsDir) {
+        this.transcriptsDir = transcriptsDir;
     }
 
     public Cli getCli() {
